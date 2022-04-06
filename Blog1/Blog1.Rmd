@@ -1,0 +1,76 @@
+---
+title: "DATA_621_Blog_1"
+author: "Euclid Zhang"
+date: "4/4/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+CerealCropYield <- read.csv("CerealCropYield_1961-2018.csv")
+FertilizerConsumption <- read.csv("FertilizerConsumption_1961-2018.csv")
+```
+
+hectogram per hectare
+
+```{r}
+summary(CerealCropYield)
+```
+
+```{r}
+summary(FertilizerConsumption)
+```
+
+```{r}
+df <- merge(CerealCropYield, FertilizerConsumption, all=FALSE)
+```
+
+
+
+
+```{r}
+df$fertilzer_per_ha <- df$FertilizerQuantity / df$Area.harvested..ha.
+names(df)[2] <- "yield_per_ha"
+df$FertilizerQuantity <- NULL
+df$Area.harvested..ha. <- NULL
+```
+
+```{r}
+summary(df)
+```
+
+```{r}
+plot(log(df$yield_per_ha)~log(df$fertilzer_per_ha))
+abline(lm_model)
+```
+
+
+```{r}
+lm_model <- lm(log(df$yield_per_ha)~log(df$fertilzer_per_ha))
+```
+
+```{r}
+plot(lm_model)
+```
+
+```{r}
+df2 <- df
+df2 <- df2[c(-45,-71,-146,-149),]
+```
+
+```{r}
+lm_model <- lm(log(df2$yield_per_ha)~log(df2$fertilzer_per_ha))
+```
+
+```{r}
+plot(lm_model)
+```
+
+
+
+```{r}
+summary(lm_model)
+```
