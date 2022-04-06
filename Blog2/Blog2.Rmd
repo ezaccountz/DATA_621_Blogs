@@ -1,0 +1,90 @@
+---
+title: "DATA_621_Blog_1"
+author: "Euclid Zhang"
+date: "4/4/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("stringr")
+library("pROC")
+library("caret")
+library("car")
+library("patchwork")
+```
+
+
+```{r}
+df <- read.csv("advertising.csv", stringsAsFactors = TRUE)
+```
+
+
+
+```{r}
+summary(df)
+```
+```{r}
+df$Ad_Topic_Line <- NULL
+df$City <-NULL
+df$Clicked_on_Ad <- as.factor(df$Clicked_on_Ad)
+```
+
+```{r}
+names(df) <- c("Daily_Time_Spent_on_Site","Age","Area_Income","Daily_Internet_Usage","Male","Country","Time","Clicked_on_Add")
+```
+
+```{r}
+summary(df)
+```
+
+
+```{r}
+df$Time <- as.character(df$Time)
+```
+
+```{r}
+time <- str_match(df$Time,"(?<hour>[0-9]{1,2}):(?<minute>[0-9]{2})")
+time_cal <- as.numeric(time[,"hour"])*60 + as.numeric(time[,"minute"])
+```
+
+```{r}
+df$Time[time_cal < 360] <- "Night"
+df$Time[time_cal >=360 & time_cal < 720] <- "Morning"
+df$Time[time_cal >=720 & time_cal < 1080] <- "Afternoon"
+df$Time[time_cal >=1080] <- "Evening"
+df$Time <- as.factor(df$Time)
+```
+
+
+```{r}
+summary(df)
+```
+
+```{r}
+logi_model <- glm(Clicked_on_Add~.-Country,df,family = binomial)
+```
+
+```{r}
+summary(logi_model)
+```
+
+```{r}
+predicted_class <- ifelse(logi_model$fitted.values>0.5,1,0)
+confusion_matrix <- confusionMatrix(as.factor(predicted_class),
+                                    df$Clicked_on_Add,positive = "1")
+confusion_matrix
+```
+```{r fig.height=7, fig.width=10, warning=FALSE}
+marginalModelPlots(logi_model,~.-Male, layout =c(2,3))
+```
+
+```{r fig.height=3, fig.width=8, warning=FALSE}
+plot_GENDER <- ggplot(df,aes(x=Male,fill=Clicked_on_Add))+geom_bar(position = position_dodge())
+plot_TIME <- ggplot(df,aes(x=Time,fill=Clicked_on_Add))+geom_bar(position = position_dodge())
+
+plot_GENDER+plot_TIME+plot_layout(ncol = 2, guides = "collect")
+```
