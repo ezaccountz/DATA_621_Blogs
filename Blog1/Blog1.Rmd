@@ -9,52 +9,110 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+
+# Linear Regression
+
+Linear Regression is a method of modeling the linear relationship between a single numeric variable (called the response variable) and one or more numeric or categorical variables (called the predictors). For example, you have model the quantity of production (response variable) relates to number of workers hired and the quality of the equipment provided (predictor variables)
+
+A linear model is usually used for one or both of the following:
+
+* Predict the outcomes of the response variable for new observations of the predictor variables.
+* Test the strengthness between the response variable and a predictor variable.
+
+# Crop Yield VS Fertilizer
+
+Let's see a simple example of a real life scenario: What is the effect of using fertilizer to the yield of cereals?
+
+
+The data used is from
+https://www.kaggle.com/datasets/kkhandekar/any-effect-of-fertilizer-pesticide-on-cereals?select=CerealCropYield_1961-2018.csv
+
+
+
+```{r include=FALSE}
 CerealCropYield <- read.csv("CerealCropYield_1961-2018.csv")
 FertilizerConsumption <- read.csv("FertilizerConsumption_1961-2018.csv")
 ```
 
-hectogram per hectare
+The data is **observational**, not experimental. We would use it to check the relationship between the two variables, **no casual effect**. 
+
+The CerealCropYield_1961-2018 file contains the yield of cereals in **Hectogram per Hectare** and the area harvested in **Hectare** of several counties from 1961 to 2018
 
 ```{r}
 summary(CerealCropYield)
 ```
 
+FertilizerConsumption contains the quantity of fertilizer used for several counties from 1961 to 2018
+
 ```{r}
 summary(FertilizerConsumption)
 ```
+We first combine the two files and calculate the quantity of fertilizer per **Hectare**
 
 ```{r}
 df <- merge(CerealCropYield, FertilizerConsumption, all=FALSE)
 ```
 
 
-
-
 ```{r}
-df$fertilzer_per_ha <- df$FertilizerQuantity / df$Area.harvested..ha.
+df$fertilizer_per_ha <- df$FertilizerQuantity / df$Area.harvested..ha.
 names(df)[2] <- "yield_per_ha"
 df$FertilizerQuantity <- NULL
 df$Area.harvested..ha. <- NULL
 ```
 
+The following is the data ready to build our linear model
+
 ```{r}
 summary(df)
 ```
+Before building our model, let's take a look at the distributions of our data
 
 ```{r}
-plot(log(df$yield_per_ha)~log(df$fertilzer_per_ha))
+plot(density(df$yield_per_ha), main="yield_per_ha")
+plot(density(df$fertilizer_per_ha), main="fertilzer_per_ha",xlim=c(0,10))
+```
+Both variables are extremely right skewed. We will log-transform the two variables to reduce outliers.
+
+
+Next, we will fit the data into a linear model
+
+```{r}
+lm_model <- lm(log(df$yield_per_ha)~log(df$fertilizer_per_ha))
+summary(lm_model)
+```
+We can plot the data and the fitted line from out model to see how well it fits
+
+```{r}
+plot(log(df$yield_per_ha)~log(df$fertilizer_per_ha))
 abline(lm_model)
 ```
 
+The relationship seems to be linear and there are some outliers in the data (the points far way from the model line)
 
-```{r}
-lm_model <- lm(log(df$yield_per_ha)~log(df$fertilzer_per_ha))
-```
+Linear Regressions are based on some assumptions. We can perform a diagnosis by plotting the residuals (distance between the model line and actual data point) to see if the the model is valid.
 
 ```{r}
 plot(lm_model)
 ```
+
+1. The relationship between the response variable and each predictor variable is linear:
+  From the Residuals vs Fitted plot, we see that the relationship is approximately linear
+2. The variance of residual is Constant: 
+  From the Scale-Location plot, the variance is mostly constant except where there are a few outliers
+3. The residuals are independent:
+  From the Residuals vs Fitted plot, the residuals are constant
+4. The residuals of the model are normally distributed:
+  From the Normal Q-Q plot, most of the residuals are normally distributed, except some outliers.
+  
+In summary, our model doesn't have any serious problems except there are a few extrem outliers.
+We can check the outliers indicated in the plots
+```{r}
+df[c(45,71,146,149),]
+```
+They are the case with nearly 0 fertilizer or extremely high usage of fertilizers. Practically this shouldn't be done. 
+Hence, we will remove these outliers and rebuild our model
+
 
 ```{r}
 df2 <- df
@@ -62,15 +120,27 @@ df2 <- df2[c(-45,-71,-146,-149),]
 ```
 
 ```{r}
-lm_model <- lm(log(df2$yield_per_ha)~log(df2$fertilzer_per_ha))
+lm_model <- lm(log(df2$yield_per_ha)~log(df2$fertilizer_per_ha))
 ```
 
 ```{r}
-plot(lm_model)
+plot(log(df2$yield_per_ha)~log(df2$fertilizer_per_ha))
+abline(lm_model)
 ```
 
+The revised model looks a lot better.
 
+
+# Conclusion
+
+Now, let's see what our model tells us.
 
 ```{r}
 summary(lm_model)
 ```
+The t-value, or Pr(>|t|) tells us that the coefficient for the log-transformed fertilizer_per_ha is nearly impossible to be 0. This indicates a strong relationship between the corp yield and the quantity of fertilizer used. 
+Since both the response variable and the predictor variable are log-transformed, we can interpret the coefficient as "a percentage increase in the quantity of the fertilizer increase the corp yield by approximately 0.2256 percent".
+
+Recall that this is observation data, not experimental data. The model proves the relationship between the two variables, not the casual effect. To confirm if there is a casual effect, data from experiments should be collected. 
+
+Another fact we need to be aware is that we have 2 cases removed in our revised model. The two cases have abnormally high fertilizer usage. It may be data collection error or the cases actually real. Practically no one would over-fertilize their corps. Hence, we don't have enough cases to model the effect of over-fertilizing. The relationship between corp yield and the quantity of fertilizer may not be linear when we includes over-fertilizing in our consideration. Experimental data should be collected and a different model should be used for further study.
