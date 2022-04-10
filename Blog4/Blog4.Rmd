@@ -1,0 +1,95 @@
+---
+title: "DATA_621_Blog_4"
+author: "Euclid Zhang"
+date: "4/4/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library("nnet")
+```
+
+# Multinomial Regression
+
+In the last blog, we have showed how to use logistic regression to predict response variable of binary outcome (Yes / No, True / False, or 0 / 1). But what do we do when the response variable is categorical with more than 2 possible outcomes? In this situation, a multinomial regression model should be used. 
+
+Multinomial Regression is an extension of the logistic model. It predicts the probabilities of all possible outcomes and classify the the outcome of a case to be the one with the highest probability. 
+
+One important factor that we need to be aware about Multinomial Regression is the Independence of Irrelevant Alternatives assumption. 
+What it says is that the ratio of outcome A to outcome B is not affected by the presence of any other outcomes.
+
+
+# Crop Recommendation
+
+In blog 1 we have showed how to use a linear regression model to help finding how corp yield is affected by the quantity of fertilizer.
+We can also use a multinomial regression model to recommend the type of crop to be grown based on the soil conditions and the weather of the location.
+
+The data used is from
+https://www.kaggle.com/datasets/atharvaingle/crop-recommendation-dataset
+
+```{r}
+df <- read.csv("Crop_recommendation.csv", stringsAsFactors = TRUE)
+```
+
+The data contains the following fields:
+
+* N: ratio of Nitrogen content in soil
+* P: ratio of Phosphorous content in soil
+* K: ratio of Potassium content in soil
+* temperature: temperature in degree Celsius
+* humidity: relative humidity in %
+* ph: ph value of the soil
+* rainfall: rainfall in mm
+* label: the most suitable corp to grow
+
+```{r}
+summary(df)
+```
+The data is already well-prepared, we can go straight building the model.
+
+
+```{r include=FALSE}
+mulnorm_model <- multinom(label ~ ., df)
+```
+
+```{r}
+summary(mulnorm_model)
+```
+
+# Conclusion
+
+From the result of our model, holding all other predictor values the same:
+
+* For soil with higher Nitrogen content, it is better to grow Banana, Coffee, or Cotton
+* For soil with higher Phosphorous content, it is better to grow Pigeonpeas, Banana, or Kidneybeans
+* For soil with higher Potassium content, it is better to grow Grapes, Watermelon, or Apple  
+    **apple is not showed in the model because it is the base case, most of other coefficients are less than 0 indicates that they are less recommended to be grown than apple**
+* For higher temperature, it is better to grow Mango, Coffee, or Papaya
+* For higher humidity, it is better to grow Coconut, Mungbean, or Muskmelon
+* For soil with higher ph, it is better to grow Chickpea, Grapes, Cotton or, Mothbeans
+* For higher rainfall, it is better to grow Rice, Coconut, or Pigeonpeas
+
+
+We can check the performance of our model:
+
+```{r}
+xtabs( ~ predict(mulnorm_model) + df$label)
+```
+
+Most of cases are classified correctly, except for maize. 
+For maize, we can see from the following plots that it doesn't favor any high or low value of the predictors. Therefore, it is not well-recommended by our model in any soil or weather conditions, comparing to other corps.
+
+```{r fig.height=15, fig.width=8}
+par(mfrow=c(4,2))
+plot(N~label,df, las=2, xlab = "")
+plot(P~label,df, las=2, xlab = "")
+plot(K~label,df, las=2, xlab = "")
+plot(temperature~label,df, las=2, xlab = "")
+plot(humidity~label,df, las=2, xlab = "")
+plot(ph~label,df, las=2, xlab = "")
+plot(rainfall~label,df, las=2, xlab = "")
+```
