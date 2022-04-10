@@ -1,0 +1,111 @@
+---
+title: "DATA_621_Blog_5"
+author: "Euclid Zhang"
+date: "4/4/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include=FALSE}
+library(ggplot2)
+```
+
+# Generalized Linear Regression - Poisson Distribution
+
+In Blog 1 and Blog 2, we have discussed about the regular Linear Regression. One of important assumptions of regular Linear Regression is that the error terms (residuals) are normally distributed. When the error terms are not normally distributed, we may transform the data to make it fit the model. 
+  
+When the distribution of the response variable is known, a better approach is use Generalized Linear Regression.
+For example, when the response variable follows a poisson distribution, we can build a generalized linear regression model with the log link function.
+
+
+# Household Size Vs Household Income and Househead Gender
+
+Is the size of a household affected by the household's income?  
+Is the size of a household affected by the gender of the household head?
+
+Let's find the answers of the questions by building a regression model using the following real life data:
+
+**Filipino Family Income and Expenditure**  
+https://www.kaggle.com/datasets/grosvenpaul/family-income-and-expenditure
+
+The data contains numerous information, we will not use all of them since the purpose here is to demonstrate a simple example of Generalized Linear Regression.  
+We will use the Total Income, Household Sex, Total Number of Family Members in our analysis.  
+The data set is large, we will use a subset of it by selecting the cases in the NCR region.  
+
+```{r}
+df <- read.csv("Family Income and Expenditure.csv", stringsAsFactors = TRUE)
+
+df <- df[,c("Total.Household.Income","Household.Head.Sex","Total.Number.of.Family.members","Region")]
+
+df <- df[df$Region=="NCR",]
+df$Region <- NULL
+
+df$Family_Members <- df$Total.Number.of.Family.members
+df$Total.Number.of.Family.members <- NULL
+
+df$Income_Log <- log(df$Total.Household.Income)
+df$Total.Household.Income <- NULL
+
+names(df)[1] <- "Gender"
+```
+
+Since income is right-skewed, we also log transformed the income.  
+  
+The following is a summary of our simplified data.
+
+```{r}
+summary(df)
+```
+Let's check the distribution of our response variable, the total number of family members
+
+```{r}
+hist(df$Family_Members, breaks=30)
+```
+
+The shape seems to be a poisson distribution. 
+
+```{r echo=FALSE}
+print("The mean is")
+mean(df$Family_Members)
+print("The variance is")
+var(df$Family_Members)
+```
+The mean and variance is very close. So there is no strong evidence indicating the distribution is non-poisson.
+  
+
+Now, let's build our generalized regression model assuming the distribution of the response variable is poisson.
+```{r}
+glm_model <- glm(Family_Members ~ Income_Log+Gender, family = poisson, data = df)
+```
+
+```{r}
+summary(glm_model)
+```
+
+# Conclusion
+
+From the result of the model, we find that
+
+* Both income and gender of the household head are significant factors in determining the size of the household
+* If the log of income is increased by 1 unit, the expected size of household is increased by approximately $(e^{0.22168}-1)=24.8\%$
+* Comparing to a female household head, male household head has an expected household size approximately $(e^{0.11238}-1)=11.9\%$ larger
+
+The findings are showed in the following plot
+
+```{r}
+df$predicted <- predict(glm_model, type="response")
+
+ggplot(df, aes(x = Income_Log, y = predicted, color = Gender)) +
+  geom_point(aes(y = Family_Members), alpha = .5, position = position_jitter(h = .2)) +
+  geom_line() +
+  labs(x = "Log Income", y = "Number of Household members")
+```
+
+
+
+
+
+
