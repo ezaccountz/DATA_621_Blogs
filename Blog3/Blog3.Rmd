@@ -1,0 +1,151 @@
+---
+title: "DATA_621_Blog_3"
+author: "Euclid Zhang"
+date: "4/4/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library("stringr")
+library("pROC")
+library("caret")
+library("car")
+library("patchwork")
+```
+# Logistic Regression
+
+In the last two blogs, we have discussed the simple linear regression and multivariate linear regression. In linear regressions, the response variable is numeric. But what can do when the response variable is categorical? In the simplest case, the response variable has only two distinct values: Yes or No, True or False, or 0 or 1. In this situation, we can use logistic regression. 
+
+A logistic regression model predicts the probability of a specific outcome value (called the positive outcome).
+If the probability exceeds a threshold (normally 50%), the outcome is classified as positive (Yes / True / 1)
+
+# Online Advertising
+
+One real life example that logistic regression can be applied is online advertising. Will a person click on an advertisement on a website? Who are more likely to click on an advertisement? Will people be more likely to click on an advertisement during day time or night time?
+
+
+We will try to answer the questions by building a logistic regression model using the following data set
+
+https://www.kaggle.com/datasets/kumarraja052/advertising-logistic-regression
+
+
+```{r}
+df <- read.csv("advertising.csv", stringsAsFactors = TRUE)
+df$Male <- as.factor(df$Male)
+df$Clicked_on_Ad <- as.factor(df$Clicked_on_Ad)
+```
+
+The data contains the following fields:
+
+* Daily_Time_Spent_on_Site: the daily time spent on the website, in minutes.
+* Age: the age of the person.
+* Area_Income: the average income in the area.
+* Daily_Internet_Usage: the daily time spent on the internet, in minutes.
+* Male: the gender of the person, 1 if male and 0 if female.
+* Country: the country the person is in.
+* City: the city the person is in.
+* Ad_Topic_Line: the topic of the advertisement.
+* Timestamp: the time that the person closed the website
+* Clicked_on_Ad: whether the person clicked on the advertisement.
+
+
+The Ad_Topic_Line, City and Country will not be used in our analysis because there are not enough cases for each distinct value of the variables.
+
+```{r}
+df$Ad_Topic_Line <- NULL
+df$City <-NULL
+df$Country <-NULL
+```
+
+```{r}
+names(df) <- c("Daily_Time_Spent_on_Site","Age","Area_Income","Daily_Internet_Usage","Male","Time","Clicked_on_Add")
+```
+
+```{r}
+summary(df)
+```
+
+We will convert the time (timestamp) into a categorical variable with the following values:
+
+* Night: 12 AM to 6 AM
+* Morning: 6 AM to 12 PM
+* Afternoon: 12 PM to 6 PM
+* Evening: 6 PM to 12 AM
+
+```{r}
+df$Time <- as.character(df$Time)
+ 
+time <- str_match(df$Time,"(?<hour>[0-9]{1,2}):(?<minute>[0-9]{2})")
+time_cal <- as.numeric(time[,"hour"])*60 + as.numeric(time[,"minute"])
+ 
+df$Time[time_cal < 360] <- "Night"
+df$Time[time_cal >=360 & time_cal < 720] <- "Morning"
+df$Time[time_cal >=720 & time_cal < 1080] <- "Afternoon"
+df$Time[time_cal >=1080] <- "Evening"
+df$Time <- as.factor(df$Time)
+```
+
+
+We have the following data ready to build our logistic model
+
+```{r}
+summary(df)
+```
+
+```{r}
+logi_model <- glm(Clicked_on_Add~.,df,family = binomial)
+```
+
+```{r}
+summary(logi_model)
+```
+
+
+We first check if our model fits the data well. The following plots show the nonparametric regressions of the response variable against each predictor variable. The nonparametric regression lines and our logistic regression lines are very close, there is no inadequate fit of our model. 
+
+```{r fig.height=7, fig.width=10, warning=FALSE}
+marginalModelPlots(logi_model,~.-Male, layout =c(2,3))
+```
+
+Now let's check the performance of our model. Since the data set is well-balanced with 500 cases Clicked_on_Add = 1 and 500 cases Clicked_on_Add = 0, we will use the threshold 0.5 to predict the outcome.
+
+```{r}
+predicted_class <- ifelse(logi_model$fitted.values>0.5,1,0)
+confusion_matrix <- confusionMatrix(as.factor(predicted_class),
+                                    df$Clicked_on_Add,positive = "1")
+confusion_matrix
+```
+Our model predicted 96.8% of the outcome in the training data set correctly! This also confirm that our model is fitting the data really well.
+
+# Conclusion
+
+Back to our original questions. We would like to know the factors that affect the likelihood of clicking on an online advertisement.
+
+```{r}
+summary(logi_model)
+```
+
+looking at the model summary again. We see that gender and time are not significant factors. We can confirm that by the following plots
+
+```{r fig.height=3, fig.width=8, warning=FALSE}
+plot_GENDER <- ggplot(df,aes(x=Male,fill=Clicked_on_Add))+geom_bar(position = position_dodge())
+plot_TIME <- ggplot(df,aes(x=Time,fill=Clicked_on_Add))+geom_bar(position = position_dodge())
+
+plot_GENDER+plot_TIME+plot_layout(ncol = 2, guides = "collect")
+```
+
+The proportion of people clicked on the ad does not vary by a lot based on gender or time.
+
+Besides that, we have the following findings from our model:
+
+* The longer the person spent on the website, the less likely the person will click on the ad
+* The longer the person spent on the internet, the less likely the person will click on the ad
+* In the area with higher average income, the less likely the person will click on the ad
+* The older the person is, the more likely the person will click on the ad
+
+One thing we need to be aware is that our model fits well to the training data, it may not have the same performance with unseen data. Model improvment is a continuous process
+
