@@ -1,5 +1,5 @@
 ---
-title: "DATA_621_Blog_1"
+title: "DATA_621_Blog_2"
 author: "Euclid Zhang"
 date: "4/4/2022"
 output: html_document
@@ -9,82 +9,145 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
-library("stringr")
-library("pROC")
-library("caret")
-library("car")
-library("patchwork")
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library("MASS")
+library("olsrr")
 ```
+# Multivariate Linear Regression
+
+In Blog 1 we see a simple example of linear regression with 1 predictor variable. In real world, mostly we would like to know the outcome of an event related to multiple variables instead of one. Building a model with multiple predictor variables is called the multivariate linear regression. It follows the same process as the simple linear regression. However, multivariate linear regression is generally more complicated as we need to consider transforming the predictor variables or adding interactions between the predictor variables to make the model fit the data while meeting all the assumptions of the model.
 
 
-```{r}
-df <- read.csv("advertising.csv", stringsAsFactors = TRUE)
-```
+# Fuel efficiency of cars
+
+
+When buying a car, fuel efficiency is one of the most important factors in comparing different car models. We would like to have a car running more miles per gallon of fuel. Here we will build a multivariate linear regression model to see what characteristics (horse power, weight, etc.) of a car affact its fuel efficiency.
 
 
 
-```{r}
-summary(df)
-```
-```{r}
-df$Ad_Topic_Line <- NULL
-df$City <-NULL
-df$Clicked_on_Ad <- as.factor(df$Clicked_on_Ad)
-```
+The data used is from
+https://archive.ics.uci.edu/ml/datasets/auto+mpg
 
-```{r}
-names(df) <- c("Daily_Time_Spent_on_Site","Age","Area_Income","Daily_Internet_Usage","Male","Country","Time","Clicked_on_Add")
-```
-
-```{r}
-summary(df)
-```
+This dataset was taken from the StatLib library which is maintained at Carnegie Mellon University. The dataset was used in the 1983 American Statistical Association Exposition.
 
 
 ```{r}
-df$Time <- as.character(df$Time)
+df <- read.csv("auto-mpg.csv", stringsAsFactors = TRUE)
+names(df)[1] <- "miles_per_gallon"
 ```
 
-```{r}
-time <- str_match(df$Time,"(?<hour>[0-9]{1,2}):(?<minute>[0-9]{2})")
-time_cal <- as.numeric(time[,"hour"])*60 + as.numeric(time[,"minute"])
-```
+The data set contains the following fields:
 
-```{r}
-df$Time[time_cal < 360] <- "Night"
-df$Time[time_cal >=360 & time_cal < 720] <- "Morning"
-df$Time[time_cal >=720 & time_cal < 1080] <- "Afternoon"
-df$Time[time_cal >=1080] <- "Evening"
-df$Time <- as.factor(df$Time)
-```
-
+* mpg: fuel efficiency measured in miles per gallon
+* cylinders: number of cylinders in the engine
+* displacement: engine displacement in cubic inches
+* horsepower: engine horsepower
+* weight: vehicle weight in pounds
+* acceleration: the number of seconds to accelerate from 0 to 60 mph
+* model year: the model year of the vehicle
+* origin: the origin of the car, American, European or Japanses
+* car name: the name of the car
 
 ```{r}
 summary(df)
 ```
+There are 6 missing values in horsepower, we will impute them with the mean value of horsepower.  
+Since the data was used in 1983, we will calculate the age of the cars by 1983 - the model year.
+The mode year and the name of the cars will then not included in our model.
 
 ```{r}
-logi_model <- glm(Clicked_on_Add~.-Country,df,family = binomial)
+df2 <- df
+df2$horsepower[is.na(df2$horsepower)] <- mean(df2$horsepower, na.rm = TRUE)
+df2$car_age <- 83-df2$model_year
+df2$model_year<- NULL
+df2$car_name <- NULL
+```
+
+The data is ready, let's build our first model including all variables
+```{r}
+lm_model <- lm(miles_per_gallon~., df2)
 ```
 
 ```{r}
-summary(logi_model)
+summary(lm_model)
+```
+The model result looks great, all predictors are significant except acceleration and the number of cylinders. But how well does the model fit the data and is our model meeting the assumptions of linear regression?
+```{r fig.height=6, fig.width=6}
+par(mfrow=c(2,2))
+plot(lm_model)
+```
+
+Apparently there is a pattern in the residuals. The relationship is non-linear.  
+From the Scale-Location plot, the residuals do not have constant variance.  
+We may consider transforming the response variable. Let's look at the distribution of the response variable
+
+```{r fig.height=3, fig.width=4}
+plot(density(df2$miles_per_gallon), main="miles per gallon")
+```
+
+The distribution is right skewed, a log transformation may be applied to the variable
+
+We rebuild our model with the log-transformed miles_per_gallon
+```{r}
+lm_model <- lm(log(miles_per_gallon)~., df2)
+```
+
+```{r fig.height=6, fig.width=6}
+par(mfrow=c(2,2))
+plot(lm_model)
+```
+
+The variance of the residuals are now constant. 
+The distribution of the residuals is approximately normal, except a few outliers.
+However, the is still a little curvature in the Residuals vs Fitted plot. 
+
+We may consider transforming one or more of the predictor variables, or adding interactions between variables. 
+
+One may want to know if any of the predictor variables have a different effect on the outcome (mile_per_gallon) depending on the value of the origin (American, Japanese or European).  
+
+We will first add the interactions between origin and all other predictor variables. If the residuals are still showing non-linear relationship, we would do more transformation of the predictor variables.
+
+```{r}
+lm_model <- lm(log(miles_per_gallon)~.*origin, df2)
 ```
 
 ```{r}
-predicted_class <- ifelse(logi_model$fitted.values>0.5,1,0)
-confusion_matrix <- confusionMatrix(as.factor(predicted_class),
-                                    df$Clicked_on_Add,positive = "1")
-confusion_matrix
-```
-```{r fig.height=7, fig.width=10, warning=FALSE}
-marginalModelPlots(logi_model,~.-Male, layout =c(2,3))
+summary(lm_model)
 ```
 
-```{r fig.height=3, fig.width=8, warning=FALSE}
-plot_GENDER <- ggplot(df,aes(x=Male,fill=Clicked_on_Add))+geom_bar(position = position_dodge())
-plot_TIME <- ggplot(df,aes(x=Time,fill=Clicked_on_Add))+geom_bar(position = position_dodge())
-
-plot_GENDER+plot_TIME+plot_layout(ncol = 2, guides = "collect")
+```{r fig.height=6, fig.width=6}
+par(mfrow=c(2,2))
+plot(lm_model)
 ```
+
+Luckily, the relationship now is approximately linear.
+
+Let's look at the summary of our model
+```{r}
+summary(lm_model)
+```
+we see that some of the coefficients are not significant. We will remove some of the terms by based on the significancy. 
+
+```{r}
+lm_model2 <- ols_step_both_p(lm_model, details = FALSE)$model
+```
+
+Our final model is
+```{r}
+summary(lm_model2)
+```
+# Conclusion
+
+Based on the model
+
+* cars with lighter weight have better fuel efficiency, given the origin is the same.
+* cars of newer model have better fuel efficiency, given the origin is the same.
+* The effect of car weight and car age is affected by the origin.
+* cars made in European have better fuel efficiency.
+* cars with lower horsepower have better fuel efficiency.
+* cars with higher displacement have better fuel efficiency.
+* American and European cars have better fuel efficiency with fewer cylinders.
+
+From this example, we see that building a multivariate linear regression model is a lot more complicated than building a simple linear regression model. The Complexity increases as the number of predictor variables increases. 
+
+Another fact we need to be aware is that this is an old data set collected 1983. Our findings may not apply to the modern new cars. New data should be collected and the model should be revised. 
